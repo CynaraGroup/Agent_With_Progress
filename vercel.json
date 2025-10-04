@@ -22,7 +22,7 @@
       "methods": ["POST", "OPTIONS"]
     },
     {
-      "src": "^/[^/]*\.(js|css|png|jpg|jpeg|gif|ico|svg|ttf|woff|woff2|eot)(\?.*)?$",
+      "src": "^/[^/]*\\.(js|css|png|jpg|jpeg|gif|ico|svg|ttf|woff|woff2|eot)(\\?.*)?$",
       "dest": "public/$1"
     },
     {
