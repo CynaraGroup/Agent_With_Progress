@@ -31,20 +31,29 @@ app.use((req, res, next) => {
 
 // 使用内存存储替代磁盘存储，适应Vercel无服务器环境
 const storage = multer.memoryStorage();
-// 配置multer，设置文件大小限制
+// 配置multer，设置文件大小限制 - 更保守的配置以适应Vercel环境
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB限制
+    fileSize: 5 * 1024 * 1024, // 降低到5MB以适应Vercel的限制
+    parts: 10, // 限制parts数量
+    files: 1   // 只允许上传一个文件
   },
   fileFilter: (req, file, cb) => {
-    // 只接受.txt和.md文件
-    const allowedExtensions = ['.txt', '.md'];
-    const ext = ('.' + file.originalname.split('.').pop()).toLowerCase();
-    if (allowedExtensions.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('只支持.txt和.md文件'), false);
+    try {
+      // 更健壮的文件类型检查
+      const allowedExtensions = ['.txt', '.md'];
+      const fileName = (file.originalname || '').toLowerCase();
+      const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+      
+      if (hasValidExtension) {
+        cb(null, true);
+      } else {
+        cb(new Error('只支持.txt和.md文件'), false);
+      }
+    } catch (err) {
+      console.error('文件过滤错误:', err);
+      cb(new Error('文件类型验证失败'), false);
     }
   }
 });
@@ -100,49 +109,88 @@ function parseFileContent(content) {
   }
 }
 
-// 上传文件的路由 - 简化错误处理
-app.post('/upload', upload.single('homeworkFile'), (req, res) => {
-  try {
+// 上传文件的路由 - 增强Vercel环境的错误处理
+app.post('/upload', (req, res) => {
+  console.log('接收到上传请求，准备处理文件...');
+  
+  // 手动处理multer，避免中间件链在Vercel环境的问题
+  upload.single('homeworkFile')(req, res, (err) => {
+    if (err) {
+      console.error('Multer上传错误:', err);
+      return res.status(400).json({ 
+        success: false,
+        error: err.message || '文件上传失败' 
+      });
+    }
+
+    console.log('文件上传成功，开始处理内容...');
+    
     if (!req.file) {
-      return res.status(400).json({ error: '没有文件被上传' });
+      console.error('没有收到文件');
+      return res.status(400).json({ 
+        success: false,
+        error: '没有文件被上传' 
+      });
     }
     
-    // 从内存中读取文件内容，不再依赖文件系统
-    const fileContent = req.file.buffer.toString('utf8');
-    const homeworkData = parseFileContent(fileContent);
-    
-    // 成功响应
-    res.status(200).json({
-      success: true,
-      data: homeworkData
-    });
-  } catch (error) {
-    console.error('处理上传错误:', error);
-    res.status(400).json({ 
-      error: error.message || '文件处理失败' 
-    });
-  }
+    try {
+      // 确保文件大小合理
+      if (req.file.buffer.length > 10 * 1024 * 1024) {
+        throw new Error('文件过大');
+      }
+      
+      // 从内存中读取文件内容，不再依赖文件系统
+      const fileContent = req.file.buffer.toString('utf8');
+      console.log('文件内容读取成功，长度:', fileContent.length);
+      
+      // 解析文件内容
+      const homeworkData = parseFileContent(fileContent);
+      console.log('文件解析成功，生成数据项数量:', homeworkData.length);
+      
+      // 成功响应
+      res.status(200).json({
+        success: true,
+        data: homeworkData
+      });
+    } catch (error) {
+      console.error('处理文件内容错误:', error);
+      res.status(400).json({ 
+        success: false,
+        error: error.message || '文件处理失败' 
+      });
+    }
+  });
 });
 
-// 保存进度的路由
+// 保存进度的路由 - 优化Vercel环境支持
 app.post('/save-progress', (req, res) => {
+  console.log('接收到保存进度请求...');
+  
   try {
-    // 检查请求体
-    if (!req.body) {
-      return res.status(400).json({ error: '无效的请求数据' });
+    // 更健壮的请求体检查
+    if (!req.body || typeof req.body !== 'object') {
+      console.error('无效的请求数据格式');
+      return res.status(400).json({ 
+        success: false,
+        error: '无效的请求数据格式' 
+      });
     }
     
     // 在Vercel环境中，我们无法持久化保存数据，所以只记录日志
-    console.log('接收到的进度数据:', JSON.stringify(req.body).substring(0, 100) + '...');
+    const dataPreview = JSON.stringify(req.body).substring(0, 150) + '...';
+    console.log('接收到的进度数据:', dataPreview);
     
-    // 返回成功响应
+    // 返回成功响应，确保格式与前端期望一致
     res.status(200).json({ 
       success: true,
-      message: '进度已接收' 
+      message: '进度已成功接收' 
     });
   } catch (error) {
-    console.error('保存进度错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
+    console.error('保存进度过程中发生错误:', error);
+    res.status(500).json({ 
+      success: false,
+      error: '服务器处理进度时出错' 
+    });
   }
 });
 
