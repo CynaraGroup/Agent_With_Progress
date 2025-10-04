@@ -10,27 +10,13 @@ const port = process.env.PORT || 3000;
 app.use(express.static('public'));
 app.use(express.json());
 
-// 设置文件上传
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
-
+// 使用内存存储替代磁盘存储，适应Vercel无服务器环境
+const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// 创建uploads目录（如果不存在）
-if (!fs.existsSync('uploads')) {
-  fs.mkdirSync('uploads');
-}
-
 // 解析文件内容的函数
-function parseFileContent(filePath) {
+function parseFileContent(content) {
   try {
-    const content = fs.readFileSync(filePath, 'utf8');
     const lines = content.split('\n');
     const result = [];
     let currentSubject = null;
@@ -86,18 +72,11 @@ app.post('/upload', upload.single('homeworkFile'), (req, res) => {
       return res.status(400).json({ error: '没有文件被上传' });
     }
     
-    const filePath = req.file.path;
-    const homeworkData = parseFileContent(filePath);
+    // 从内存中读取文件内容，不再依赖文件系统
+    const fileContent = req.file.buffer.toString('utf8');
+    const homeworkData = parseFileContent(fileContent);
     
-    // 在Vercel环境中，文件会在函数执行完成后自动清理
-    // 但在本地开发环境中我们仍然手动清理以节省空间
-    if (process.env.NODE_ENV !== 'production') {
-      try {
-        fs.unlinkSync(filePath);
-      } catch (unlinkError) {
-        console.warn('无法删除临时文件:', unlinkError);
-      }
-    }
+    // 在内存存储模式下，不需要手动清理文件
     
     res.json({
       success: true,
