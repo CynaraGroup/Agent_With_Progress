@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // 设置静态文件目录
 app.use(express.static('public'));
@@ -89,8 +89,15 @@ app.post('/upload', upload.single('homeworkFile'), (req, res) => {
     const filePath = req.file.path;
     const homeworkData = parseFileContent(filePath);
     
-    // 删除临时文件
-    fs.unlinkSync(filePath);
+    // 在Vercel环境中，文件会在函数执行完成后自动清理
+    // 但在本地开发环境中我们仍然手动清理以节省空间
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (unlinkError) {
+        console.warn('无法删除临时文件:', unlinkError);
+      }
+    }
     
     res.json({
       success: true,
