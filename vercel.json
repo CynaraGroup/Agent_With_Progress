@@ -4,9 +4,27 @@
     {
       "src": "index.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "public/(.*)",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
+    {
+      "src": "/upload",
+      "dest": "index.js",
+      "methods": ["POST", "OPTIONS"]
+    },
+    {
+      "src": "/save-progress",
+      "dest": "index.js",
+      "methods": ["POST", "OPTIONS"]
+    },
+    {
+      "src": "^/[^/]*\.(js|css|png|jpg|jpeg|gif|ico|svg|ttf|woff|woff2|eot)(\?.*)?$",
+      "dest": "public/$1"
+    },
     {
       "src": "/(.*)",
       "dest": "index.js"

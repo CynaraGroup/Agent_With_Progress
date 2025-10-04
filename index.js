@@ -194,6 +194,18 @@ app.post('/save-progress', (req, res) => {
   }
 });
 
+// 404处理中间件 - 必须放在所有路由之后，但在错误处理中间件之前
+app.use((req, res) => {
+  console.log(`404错误：未找到路径 ${req.method} ${req.url}`);
+  res.status(404).json({ error: '请求的资源不存在' });
+});
+
+// 错误处理中间件 - 必须放在所有路由和404处理中间件之后
+app.use((err, req, res, next) => {
+  console.error('Express错误:', err);
+  res.status(500).json({ error: '服务器内部错误' });
+});
+
 // 启动服务器
 // 在Vercel环境中，这部分代码不会被直接使用，但保留以支持本地开发
 if (require.main === module) {
@@ -201,17 +213,6 @@ if (require.main === module) {
     console.log(`服务器运行在 http://localhost:${port}`);
   });
 }
-
-// 错误处理中间件 - 必须放在所有路由之后
-app.use((err, req, res, next) => {
-  console.error('Express错误:', err);
-  res.status(500).json({ error: '服务器内部错误' });
-});
-
-// 404处理中间件
-app.use((req, res) => {
-  res.status(404).json({ error: '请求的资源不存在' });
-});
 
 // 导出app以支持Vercel的Serverless函数模式
 module.exports = app;
