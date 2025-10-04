@@ -7,12 +7,6 @@ const app = express();
 // 动态端口设置，支持Vercel环境
 const port = process.env.PORT || 3000;
 
-// 添加错误处理中间件
-app.use((err, req, res, next) => {
-  console.error('Express错误:', err);
-  res.status(500).json({ error: '服务器内部错误' });
-});
-
 // 配置CORS支持
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,10 +20,14 @@ app.use((req, res, next) => {
 
 // 设置静态文件目录
 app.use(express.static('public'));
-// JSON解析中间件
-app.use(express.json());
-// 安全起见，限制JSON体大小
+// JSON解析中间件，一次性配置大小限制
 app.use(express.json({ limit: '1mb' }));
+
+// 添加请求日志中间件，帮助调试
+app.use((req, res, next) => {
+  console.log(`收到请求: ${req.method} ${req.url}`);
+  next();
+});
 
 // 使用内存存储替代磁盘存储，适应Vercel无服务器环境
 const storage = multer.memoryStorage();
@@ -41,8 +39,9 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     // 只接受.txt和.md文件
-    if (file.mimetype === 'text/plain' || file.mimetype === 'text/markdown' || 
-        file.originalname.endsWith('.txt') || file.originalname.endsWith('.md')) {
+    const allowedExtensions = ['.txt', '.md'];
+    const ext = ('.' + file.originalname.split('.').pop()).toLowerCase();
+    if (allowedExtensions.includes(ext)) {
       cb(null, true);
     } else {
       cb(new Error('只支持.txt和.md文件'), false);
@@ -101,40 +100,27 @@ function parseFileContent(content) {
   }
 }
 
-// 上传文件的路由 - 添加try-catch保护整个路由处理
-app.post('/upload', (req, res) => {
+// 上传文件的路由 - 简化错误处理
+app.post('/upload', upload.single('homeworkFile'), (req, res) => {
   try {
-    upload.single('homeworkFile')(req, res, async (err) => {
-      if (err) {
-        return res.status(400).json({ 
-          error: err.message || '文件上传失败' 
-        });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({ error: '没有文件被上传' });
-      }
-      
-      try {
-        // 从内存中读取文件内容，不再依赖文件系统
-        const fileContent = req.file.buffer.toString('utf8');
-        const homeworkData = parseFileContent(fileContent);
-        
-        // 成功响应
-        res.status(200).json({
-          success: true,
-          data: homeworkData
-        });
-      } catch (parseError) {
-        console.error('解析文件错误:', parseError);
-        res.status(400).json({ 
-          error: '文件解析失败: ' + parseError.message 
-        });
-      }
+    if (!req.file) {
+      return res.status(400).json({ error: '没有文件被上传' });
+    }
+    
+    // 从内存中读取文件内容，不再依赖文件系统
+    const fileContent = req.file.buffer.toString('utf8');
+    const homeworkData = parseFileContent(fileContent);
+    
+    // 成功响应
+    res.status(200).json({
+      success: true,
+      data: homeworkData
     });
   } catch (error) {
-    console.error('路由处理错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
+    console.error('处理上传错误:', error);
+    res.status(400).json({ 
+      error: error.message || '文件处理失败' 
+    });
   }
 });
 
@@ -167,6 +153,17 @@ if (require.main === module) {
     console.log(`服务器运行在 http://localhost:${port}`);
   });
 }
+
+// 错误处理中间件 - 必须放在所有路由之后
+app.use((err, req, res, next) => {
+  console.error('Express错误:', err);
+  res.status(500).json({ error: '服务器内部错误' });
+});
+
+// 404处理中间件
+app.use((req, res) => {
+  res.status(404).json({ error: '请求的资源不存在' });
+});
 
 // 导出app以支持Vercel的Serverless函数模式
 module.exports = app;
