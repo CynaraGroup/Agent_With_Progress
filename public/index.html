@@ -536,54 +536,24 @@
             loading.style.display = 'block';
             contentGrid.innerHTML = '';
 
+            console.log('开始上传文件...');
             fetch('/upload', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                credentials: 'include' // 确保正确处理跨域Cookie
             })
             .then(response => {
-                // 模拟响应数据，因为后端接口可能不可用
-                // return Promise.resolve({
-                //     success: true,
-                //     data: [
-                //         {
-                //             name: '数学',
-                //             total: 5,
-                //             completed: 0,
-                //             tasks: [
-                //                 { text: '练习册第1-10题', completed: false },
-                //                 { text: '章节测验', completed: false },
-                //                 { text: '预习下一章', completed: false },
-                //                 { text: '错题整理', completed: false },
-                //                 { text: '数学日记', completed: false }
-                //             ]
-                //         },
-                //         {
-                //             name: '语文',
-                //             total: 3,
-                //             completed: 0,
-                //             tasks: [
-                //                 { text: '作文一篇', completed: false },
-                //                 { text: '古诗词背诵', completed: false },
-                //                 { text: '阅读理解', completed: false }
-                //             ]
-                //         },
-                //         {
-                //             name: '英语',
-                //             total: 4,
-                //             completed: 0,
-                //             tasks: [
-                //                 { text: '单词记忆', completed: false },
-                //                 { text: '语法练习', completed: false },
-                //                 { text: '听力训练', completed: false },
-                //                 { text: '写作练习', completed: false }
-                //             ]
-                //         }
-                //     ]
-                // });
-                // 实际使用时启用下面的代码
-                return response.json();
+                console.log('上传响应状态:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}, 状态: ${response.statusText}`);
+                }
+                return response.json().catch(() => {
+                    // 处理非JSON响应
+                    throw new Error('服务器返回非JSON响应');
+                });
             })
             .then(data => {
+                console.log('上传成功，接收到数据:', data);
                 if (data.success) {
                     homeworkData = data.data;
                     // 切换到主界面
@@ -595,12 +565,14 @@
                     renderHomeworkData();
                     updateOverallProgress();
                 } else {
-                    alert('处理文件失败: ' + data.error);
+                    const errorMsg = data.error || '未知错误';
+                    alert('处理文件失败: ' + errorMsg);
+                    console.error('处理文件失败:', errorMsg);
                 }
             })
             .catch(error => {
-                console.error('上传错误:', error);
-                alert('上传文件时发生错误');
+                console.error('上传过程中发生错误:', error);
+                alert('上传过程中发生错误: ' + error.message + '\n请检查网络连接或稍后重试');
             })
             .finally(() => {
                 loading.style.display = 'none';

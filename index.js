@@ -109,6 +109,12 @@ function parseFileContent(content) {
   }
 }
 
+// 为/upload路由添加OPTIONS预检处理
+app.options('/upload', (req, res) => {
+  console.log('接收到/upload的OPTIONS预检请求');
+  res.status(200).end();
+});
+
 // 上传文件的路由 - 增强Vercel环境的错误处理
 app.post('/upload', (req, res) => {
   console.log('接收到上传请求，准备处理文件...');
